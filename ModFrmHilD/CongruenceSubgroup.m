@@ -130,6 +130,11 @@ intrinsic Gamma0(F::FldNum, N::RngOrdIdl, B::RngOrdIdl) -> GrpHilbert
     return Gamma0("SL", F, N, B);
 end intrinsic;
 
+intrinsic Gamma0(N::RngOrdIdl, B::RngOrdIdl) -> GrpHilbert
+{}
+    return Gamma0(NumberField(Order(N)), N, B);
+end intrinsic;
+
 intrinsic Gamma0(F::FldNum, N::RngOrdIdl) -> GrpHilbert
 {Return the Congruence Subgroup Gamma_0(N) over the number field `F`.}
     return Gamma0(F, N, 1*Integers(F));
@@ -466,6 +471,7 @@ intrinsic _EllipticPointDataSpecialCases(Gamma::GrpHilbert) -> Assoc
 end intrinsic;
 
 intrinsic NumberOfEllipticPoints(Gamma::GrpHilbert) -> RngIntElt
+  {}
   return &+[Integers() | A[k] : k in Keys(A)] where A := EllipticPointData(Gamma);
 end intrinsic;
 
