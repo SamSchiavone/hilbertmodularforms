@@ -55,6 +55,7 @@ intrinsic WriteCanonicalRingComputationToString(F::FldNum, NN::RngOrdIdl : Alg :
   {Given a quadratic field and a level, return a string containing equations for the Hilbert modular variety (including all components) as well as computational details}
 
   tt0 := Cputime();
+  mm0 := GetMemoryUsage();
   s := Sprintf("// Computing for quadratic field %o\n", LMFDBLabel(F));
   s := Sprintf("// level has label %o\n", LMFDBLabel(NN));
   prec, gen_bd, rel_bd := SetPrecisionAndBounds(NN);
@@ -69,6 +70,7 @@ intrinsic WriteCanonicalRingComputationToString(F::FldNum, NN::RngOrdIdl : Alg :
   // TODO: should loop over Galois orbits of components so that surface is both irreducible and defined over QQ
   for bb in comps do
     t0 := Cputime();
+    m0 := GetMemoryUsage();
     s *:= Sprintf("// component with label %o\n", LMFDBLabel(bb));
     G := CongruenceSubgroup("GL+", "Gamma0", F, NN, bb);
     //G := CongruenceSubgroup(AmbientType, GammaType, F, NN, bb);
@@ -77,6 +79,8 @@ intrinsic WriteCanonicalRingComputationToString(F::FldNum, NN::RngOrdIdl : Alg :
     s *:= WriteCanonicalSurfaceToString(LMFDBLabel(G), S);
     t1 := Cputime();
     s *:= Sprintf("// Computation took %o seconds\n", t1-t0);
+    m1 := GetMemoryUsage();
+    s *:= Sprintf("// Computation took %o MB of memory\n", RealField(6)!(m1-m0)/(2^20));
   end for;
   M := GradedRingOfHMFs(F,prec);
   sane, H_trace, H_test := HilbertSeriesSanityCheck(M,NN,Ss);
@@ -90,6 +94,8 @@ intrinsic WriteCanonicalRingComputationToString(F::FldNum, NN::RngOrdIdl : Alg :
   label := LMFDBLabel(G);
   tt1 := Cputime();
   s *:= Sprintf("// Total computation for all components took %o seconds\n", tt1-tt0);
+  mm1 := GetMemoryUsage();
+  s *:= Sprintf("// Total computation for all components took %o MB of memory\n", RealField(6)!(mm1-mm0)/(2^20));
   return s, label;
 end intrinsic;
 
