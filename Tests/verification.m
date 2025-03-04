@@ -80,5 +80,5 @@ printf "8, ";
 test_sqrt2();
 printf "13, ";
 test_sqrt13();
-printf "13 dynamic";
+printf "13 dynamic ";
 test_sqrt13_dynamic();
