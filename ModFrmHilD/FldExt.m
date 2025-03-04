@@ -1,18 +1,17 @@
 // save fundamental unit
 declare attributes FldAlg:
-  TotallyPositiveUnits,
+  TotallyPositiveUnitsGroup,
   TotallyPositiveUnitsMap,
   TotallyPositiveUnitsGenerators,
   TotallyPositiveUnitsGeneratorsOrients,
-  TotallyPositiveUnitsBasisMatrixInverse,
-  SquaredUnitsBasisMatrixInverse,
-  FundamentalUnitSquare,
-  TraceBasisMatrixInverse,
+  UnitsGenerators,
   ClassGroupReps,
-  DistinguishedPlace,
+  MarkedEmbedding,
   Extensions,
   Restrictions,
-  UnitCharFieldsByWeight
+  MatrixRingHoms,
+  UnitCharFieldsByWeight,
+  MinDistBtwnRoots
   ;
 
 
@@ -65,10 +64,10 @@ intrinsic Signature(a::RngOrdElt) -> SeqEnum
   return Signature(FieldOfFractions(R)!a);
 end intrinsic;
 
-intrinsic TotallyPositiveUnits(F::FldAlg) -> GrpAb, Map
+intrinsic TotallyPositiveUnitsGroup(F::FldAlg) -> GrpAb, Map
   {return the group of totally positive units of the base as an abstract group and the map from abstract totally positive unit group into F^\times_>0}
 
-  if not assigned F`TotallyPositiveUnits or not assigned F`TotallyPositiveUnitsMap then
+  if not assigned F`TotallyPositiveUnitsGroup or not assigned F`TotallyPositiveUnitsMap then
     U, mp := UnitGroup(F);
     // Stupid function, the isomorphism mu_2 -> ZZ/2*ZZ
     hiota := function(u);
@@ -83,11 +82,11 @@ intrinsic TotallyPositiveUnits(F::FldAlg) -> GrpAb, Map
     UZd := AbelianGroup([2 : i in [1..Degree(F)]]);
     phi := hom<U -> UZd | [[hiota(Sign(Evaluate(mp(U.i), v))) : v in RealPlaces(F)] : i in [1..#Generators(U)]]>;
     K := Kernel(phi);
-    F`TotallyPositiveUnits := K;
+    F`TotallyPositiveUnitsGroup := K;
     F`TotallyPositiveUnitsMap := mp;
   end if;
 
-  return F`TotallyPositiveUnits, F`TotallyPositiveUnitsMap;
+  return F`TotallyPositiveUnitsGroup, F`TotallyPositiveUnitsMap;
 end intrinsic;
 
 intrinsic FundamentalUnit(F::FldNum) -> FldElt
@@ -119,8 +118,8 @@ intrinsic TotallyPositiveUnitsGenerators(F::FldNum) -> SeqEnum[RngOrdElt]
   end if;
 
   if not assigned F`TotallyPositiveUnitsGenerators then
-    PU, mPU := TotallyPositiveUnits(F);
-    tpugs_unorient := [Integers(F)!mPU(gen) : gen in Generators(PU)];
+    PU, mPU := TotallyPositiveUnitsGroup(F);
+    tpugs_unorient := [Integers(F)!mPU(PU.i) : i in [1 .. #Generators(PU)]];
 
     v := InfinitePlaces(F)[1];
     F`TotallyPositiveUnitsGenerators := [];
@@ -131,9 +130,9 @@ intrinsic TotallyPositiveUnitsGenerators(F::FldNum) -> SeqEnum[RngOrdElt]
     // consistent with the existing behavior of FundamentalUnitTotPos
     //
     // We keep track of which generators are inverted with respect to the 
-    // Generators(F`TotallyPositiveUnits) because we need to solve the word
+    // Generators(F`TotallyPositiveUnitsGroup) because we need to solve the word
     // problem in the unit generators code and it solves it there with respect
-    // to Generators(F`TotallyPositiveUnits).
+    // to Generators(F`TotallyPositiveUnitsGroup).
     for eps in tpugs_unorient do
       if Evaluate(eps, v) lt 1 then
         Append(~F`TotallyPositiveUnitsGenerators, eps);
@@ -150,7 +149,7 @@ end intrinsic;
 intrinsic TotallyPositiveUnitsGeneratorsOrients(F::FldNum) -> SeqEnum
   {
     Returns a sequence whose ith entry e is such that the 
-    ith element of SetToSequence(Generators(TotallyPositiveUnits)) is the
+    ith element of SetToSequence(Generators(TotallyPositiveUnitsGroup)) is the
     ith element of F`TotallyPositiveUnitsGenerators raised to the eth power.
 
     Here, e will either be 1 or -1. 
@@ -159,7 +158,7 @@ intrinsic TotallyPositiveUnitsGeneratorsOrients(F::FldNum) -> SeqEnum
   return F`TotallyPositiveUnitsGeneratorsOrients;
 end intrinsic;
 
-intrinsic UnitsGenerators(F::FldNum) -> SeqEnum[RngOrdElt]
+intrinsic UnitsGenerators(F::FldNum : exclude_torsion:=true) -> SeqEnum[RngOrdElt]
   {
     parameters:
       F: a number field
@@ -167,65 +166,21 @@ intrinsic UnitsGenerators(F::FldNum) -> SeqEnum[RngOrdElt]
       A sequence of elements of the ring of integers
       which generate the group of units.
   }
-
-  U, mU := UnitGroup(F);
-  ugs_unorient := [mU(gen) : gen in Exclude(Generators(U), U.1)];
-  return [orient(F, eps) : eps in ugs_unorient];
-end intrinsic;
-
-intrinsic FundamentalUnitSquare(F::FldNum) -> RngQuadElt
-  {return the fundamental unit totally positive}
-  assert Degree(F) le 2;
-  if Degree(F) eq 1 then
-    return Integers(F)!1;
+  if not assigned F`UnitsGenerators then
+    U, mU := UnitGroup(F);
+    require Order(U.1) gt 0 : "The first generator of the units group seems to no longer\
+      be the generator of torsion, so you should update the code to find the generator\
+      of torsion.";
+    gens := (exclude_torsion) select Exclude(Generators(U), U.1) else Generators(U);
+    ugs_unorient := [mU(gen) : gen in gens];
+    F`UnitsGenerators := [orient(F, eps) : eps in ugs_unorient];
   end if;
-  if not assigned F`FundamentalUnitSquare then
-    eps := FundamentalUnit(F)^2;
-    places := InfinitePlaces(F);
-    eps1 := Evaluate(eps, places[1]);
-    if eps1 gt 1 then
-      // eps1*eps2 = Nm(eps) = 1
-      eps := 1/eps;
-    end if;
-    eps := Integers(F)!eps;
-    F`FundamentalUnitSquare := eps;
-  end if;
-  return F`FundamentalUnitSquare;
+  return F`UnitsGenerators;
 end intrinsic;
 
-intrinsic BasisMatrixInverse(F::FldNum, epses::SeqEnum[RngOrdElt] : Precision := 100) -> AlgMatElt
-  {
-    returns a change of basis matrix transforming a point in log-Minkowski
-    space of F into the basis given the (n-1) totally positive units and 
-    the all-ones vector. 
-  }
-  B_rows := [[Log(x) : x in EmbedNumberFieldElement(eps : Precision := Precision)] : eps in epses];
-  Append(~B_rows, [1 : i in [1 .. (#epses + 1)]]);
-  B := Matrix(B_rows);
-  return B^-1;
-end intrinsic;
+/////////////////////// MarkedEmbedding and strong coercion ///////////////////////////
 
-intrinsic TotallyPositiveUnitsBasisMatrixInverse(F::FldNum) -> AlgMatElt
-  { returns BasisMatrixInverse for the totally positive units}
-  if not assigned F`TotallyPositiveUnitsBasisMatrixInverse then
-    epses := TotallyPositiveUnitsGenerators(F);
-    F`TotallyPositiveUnitsBasisMatrixInverse := BasisMatrixInverse(F, epses);
-  end if;
-  return F`TotallyPositiveUnitsBasisMatrixInverse;
-end intrinsic;
-
-intrinsic SquaredUnitsBasisMatrixInverse(F::FldNum) -> AlgMatElt
-  { returns BasisMatrixInverse for the squares of units }
-  if not assigned F`SquaredUnitsBasisMatrixInverse then
-    epses := [eps^2 : eps in UnitsGenerators(F)];
-    F`SquaredUnitsBasisMatrixInverse := BasisMatrixInverse(F, epses);
-  end if;
-  return F`SquaredUnitsBasisMatrixInverse;
-end intrinsic;
-
-/////////////////////// DistinguishedPlace and strong coercion ///////////////////////////
-
-intrinsic DistinguishedPlace(K::FldNum) -> PlcNumElt
+intrinsic MarkedEmbedding(K::FldNum) -> PlcNumElt
   {
     input:
       K: a number field
@@ -237,11 +192,11 @@ intrinsic DistinguishedPlace(K::FldNum) -> PlcNumElt
     we choose a distinguished place of K,
     we make the same choice. 
   }
-  if assigned K`DistinguishedPlace then
-    return K`DistinguishedPlace;
+  if assigned K`MarkedEmbedding then
+    return K`MarkedEmbedding;
   end if;
-  K`DistinguishedPlace := InfinitePlaces(K)[1];
-  return K`DistinguishedPlace;
+  K`MarkedEmbedding := InfinitePlaces(K)[1];
+  return K`MarkedEmbedding;
 end intrinsic;
 
 intrinsic IsStrongCoercible(L::Fld, x::.) -> BoolElt, FldElt
@@ -308,7 +263,6 @@ intrinsic StrongCoerce(L::Fld, x::FldElt) -> FldElt
     with evaluation under the distinguished places.
   }
 
-  CC_THRESHOLD := 10^-10;
   require Type(x) in [FldNumElt, FldRatElt, FldQuadElt, FldCycElt] : "%o is not a valid type for strong coercion", Type(x);
 
   // If x is rational then all embeddings are the same,
@@ -339,8 +293,8 @@ intrinsic StrongCoerce(L::Fld, x::FldElt) -> FldElt
     K`Restrictions := AssociativeArray();
   end if;
 
-  require IsNormal(K) and IsNormal(L) : "Strong coercion is not yet implemented\
-      for non-Galois fields";
+  require IsGalois(K) : "Strong coercion is not yet implemented\
+      for non-Galois initial fields";
 
   // if K = QQ then all embeddings are the same
   if K eq Rationals() then
@@ -360,15 +314,15 @@ intrinsic StrongCoerce(L::Fld, x::FldElt) -> FldElt
     return L!phi(x);
   end if;
 
-  v := DistinguishedPlace(K);
-  w := DistinguishedPlace(L);
+  v := MarkedEmbedding(K);
+  w := MarkedEmbedding(L);
 
   if IsSubfield(K, L) then
     a := PrimitiveElement(K);
     a_eval := ComplexField()!Evaluate(a, v);
     auts := Automorphisms(K);
     for aut in auts do
-      if Abs(ComplexField()!Evaluate(L!aut(a), w) - a_eval) lt CC_THRESHOLD then
+      if Abs(ComplexField()!Evaluate(L!aut(a), w) - a_eval) lt 0.5 * MinDistBtwnRoots(K) then
         K`Extensions[DefiningPolyCoeffs(L)] := aut;
         return StrongCoerce(L, x);
       end if;
@@ -384,7 +338,7 @@ intrinsic StrongCoerce(L::Fld, x::FldElt) -> FldElt
       // For exmaple, if x is in K and L is a cyclotomic field containing K, then
       // L!x will succeed but K!(L!x) will fail. This case is not important right
       // now so I'm leaving it to future me (or present you!) to fix it. 
-      if Abs(ComplexField()!Evaluate(L!aut(a), w) - a_eval) lt CC_THRESHOLD then
+      if Abs(ComplexField()!Evaluate(L!aut(a), w) - a_eval) lt 0.5 * MinDistBtwnRoots(K) then
         K`Restrictions[DefiningPolyCoeffs(L)] := aut;
         return StrongCoerce(L, x);
       end if;
@@ -395,12 +349,34 @@ intrinsic StrongCoerce(L::Fld, x::FldElt) -> FldElt
   end if;
 end intrinsic;
 
-intrinsic StrongMultiply(K::Fld, A::List) -> FldElt
+intrinsic ListToStrongCoercedSeq(A::List) -> SeqEnum
   {
     input:
-      K - A field of type FldRat, FldCyc, FldNum, or FldQuad
+      A - A list of number field elements
+    returns:
+      A sequence containing the elements of the list, strong coerced
+      into a common parent field.
+  }
+  L := Rationals();
+  for a in A do
+    // in case a is a RngElt instead of a FldElt
+    K := NumberField(Parent(a));
+    L := (K eq L) select L else Compositum(L, K);
+  end for;
+
+  B := [];
+  for a in A do
+    Append(~B, StrongCoerce(L, a));
+  end for;
+  return B;
+end intrinsic;
+
+intrinsic StrongMultiply(A::List : K:=false) -> FldElt
+  {
+    input:
       A - A list of elements (strong) coercible into K, not necessarily
         from the same parent field.
+      K - A field of type FldRat, FldCyc, FldNum, or FldQuad
     returns:
       The product of the elements in A, as an element of K.
   }
@@ -411,12 +387,148 @@ intrinsic StrongMultiply(K::Fld, A::List) -> FldElt
     return &*[x : x in A];
   end if;
       
+  // If K is not assigned, it should be the compositum
+  // of all the elements
+  if K cmpeq false then
+    K := RationalsAsNumberField();
+    for x in A do
+      K := Compositum(K, NumberField(Parent(x)));
+    end for;
+  end if;
+      
   prod := K!1;
   for x in A do
     y := (Type(x) in [FldRatElt, RngIntElt]) select x else StrongCoerce(K, x);
     prod *:= y;
   end for;
   return prod;
+end intrinsic;
+
+intrinsic StrongAdd(A::List : K:=false) -> FldElt
+  {
+    input:
+      A - A list of elements (strong) coercible into K, not necessarily
+        from the same parent field.
+      K - A field of type FldRat, FldCyc, FldNum, or FldQuad
+    returns:
+      The sum of the elements in A, as an element of K.
+  }
+
+  // perform normal addition if all the objects 
+  // are of the same type
+  if &and[Parent(x) cmpeq Parent(A[1]) : x in A] then
+    return &+[x : x in A];
+  end if;
+
+  // If K is not assigned, it should be the compositum
+  // of all the elements
+  if K cmpeq false then
+    K := RationalsAsNumberField();
+    for x in A do
+      K := Compositum(K, NumberField(Parent(x)));
+    end for;
+  end if;
+
+  sum := K!0;
+  for x in A do
+    y := (Type(x) in [FldRatElt, RngIntElt]) select x else StrongCoerce(K, x);
+    sum +:= y;
+  end for;
+  return sum;
+end intrinsic;
+
+intrinsic StrongEquality(x::Any, y::Any : K:=false) -> BoolElt
+  {
+    Given elements x and y of possibly different fields,
+    return true if and only if they are equal after
+    strong embedding into their compositum.
+  }
+  if x cmpeq y then
+    return true;
+  end if;
+
+  if K cmpeq false then
+    K := Compositum(NumberField(Parent(x)), NumberField(Parent(y)));
+  end if;
+
+  return StrongCoerce(K, x) eq StrongCoerce(K, y);
+end intrinsic;
+
+intrinsic StrongCoerceMatrix(L::Fld, M::AlgMatElt) -> Mtrx
+  {
+    Strong coerces the matrix M, defined over a base field K,
+    into the field L. 
+  }
+  R := Parent(M);
+  K := BaseRing(R);
+  require Type(K) in [FldRat, FldQuad, FldCyc, FldNum] : "M must be defined\
+    over a field of type FldRat, FldQuad, FldCyc, or FldNum.";
+
+  n := Nrows(M);
+  // if either K or L is FldRat then automatic coercion should work.
+  if K cmpeq Rationals() then
+    return MatrixRing(L, n)!M;
+  elif L cmpeq Rationals() then
+    return MatrixRing(L, n)!M;
+  end if;
+
+  if DefiningPolyCoeffs(K) cmpeq DefiningPolyCoeffs(L) then
+    return MatrixRing(L, n)!M;
+  end if;
+
+  if not assigned K`MatrixRingHoms then
+    // M`MatrixRingHoms maps <L, n>, for L a number field
+    // and n a positive integer, to a homomorphism from 
+    // the ring of nxn matrices over K to the same over L.
+    K`MatrixRingHoms := AssociativeArray();
+  end if;
+
+
+  S := MatrixRing(L, n);
+  L_poly := DefiningPolyCoeffs(L);
+  if IsSubfield(K, L) then
+    if not IsDefined(K`MatrixRingHoms, <L_poly, n>) then
+      // this is just to do the usual checks and assign the map
+      // K`Extensions[L_poly]
+      _ := StrongCoerce(L, K.1);
+      b, aut := IsDefined(K`Extensions, L_poly);
+      require b : "Something's gone wrong, this should be defined.";
+      phi := hom<K -> L | L!(K.1)>;
+      psi := aut * phi;
+      K`MatrixRingHoms[<L_poly, n>] := hom<R -> S | psi>;
+    end if;
+    return K`MatrixRingHoms[<L_poly, n>](M);
+  elif IsSubfield(L, K) then
+    // The MatrixRingHoms logic only goes one way, so we strong coerce
+    // the entries of the matrix individually if we are trying to 
+    // coerce into a smaller subfield.
+    
+    // this will throw an error if the elements of M are not all coercible into L.
+    return S![StrongCoerce(L, x) : x in Eltseq(M)];
+  end if;
+end intrinsic;
+
+intrinsic MinDistBtwnRoots(K::FldAlg) -> FldReElt
+  {
+    Returns the minimum absolute value distance between 
+    two roots of the defining polynomial of K.
+  }
+  if not assigned K`MinDistBtwnRoots then
+    f := DefiningPolynomial(K);
+    roots := [tup[1] : tup in Roots(ChangeRing(f, ComplexField()))];
+    require #roots eq Degree(K) : "Something is wrong,\
+      the multiplicity of every root should be one";
+    require #roots gt 1 : "This shouldn't get called on the rationals";
+
+    min_dist := Abs(roots[1] - roots[2]);
+    for i in [1 .. #roots] do
+      for j in [i+1 .. #roots] do
+        min_dist := Min(Abs(roots[i] - roots[j]), min_dist);
+      end for;
+    end for;
+    K`MinDistBtwnRoots := min_dist;
+  end if;
+  return K`MinDistBtwnRoots;
 end intrinsic;
 
 /////////////////////// coefficient ring ///////////////////////////
@@ -502,42 +614,46 @@ end intrinsic;
 
 /////////////////////// unit character ///////////////////////////
 
-intrinsic AutsReppingEmbeddingsOfF(F::FldNum, k::SeqEnum[RngIntElt] : Precision := 50) -> SeqEnum[Map]
+intrinsic AutsOfKReppingEmbeddingsOfF(F::FldNum, K::FldNum : Precision := 25) -> SeqEnum[Map]
   { 
     inputs:
-      F: A totally real Galois number field of degree n
-      k: A weight, given as a SeqEnum of n natural numbers
+      F: A number field of degree n
+      K: A Galois number field containing the Galois closure of F.
     returns:
-      Let K be UnitCharField, and v_0 a distinguished real
-      place of K (we choose the first one, but this is arbitrary).
-
       We return a list [sigma_1, ..., sigma_n] 
       of automorphisms of K sorted such that if 
-      [v_1, ..., v_n] is a list of real embeddings of F, 
+      [v_1, ..., v_n] is a list of embeddings of F, 
       then v_i(x) = v_0(sigma_i(x)) for all x in F. 
       Note that when F is not Galois, this list is
       not unique, but our algorithm is deterministic.
   }
-  K := UnitCharField(F, k);
+  require IsSubfield(SplittingField(F), K) : "K must contain the Galois closure of F";
+  require IsGalois(K) : "K needs to be a Galois field";
   n := Degree(F);
-  places := RealPlaces(F);
+  places := InfinitePlaces(F);
 
   a := PrimitiveElement(F);
   a_embed_dict := AssociativeArray();
-  for i in [1 .. n] do
-    a_embed_dict[RealField(Precision)!Evaluate(a, places[i])] := i;
+  r, s := Signature(F);
+  for i in [1 .. r] do
+    z_i := Round(10^Precision*Evaluate(a, places[i]));
+    a_embed_dict[z_i] := i;
+  end for;
+
+  for i in [r+1 .. r+s] do
+    z_i := Round(10^Precision*Evaluate(a, places[i]));
+    a_embed_dict[z_i] := i;
+    a_embed_dict[Conjugate(z_i)] := i + s;
   end for;
 
   // a distinguished place of K 
   // if we want to view our HMFs as having coefficients over C,
   // we should apply v_0 to all the coefficients
-  v_0 := DistinguishedPlace(K);
+  v_0 := MarkedEmbedding(K);
   
   aut_dict := AssociativeArray();
-
-  // auts is the automorphisms of K
   for aut in Automorphisms(K) do
-    aut_a_est := RealField(Precision)!Evaluate(aut(a), v_0);
+    aut_a_est := Round(10^Precision*Evaluate(aut(a), v_0));
     b, x := IsDefined(a_embed_dict, aut_a_est);
     if b then
       aut_dict[x] := aut;
@@ -547,7 +663,42 @@ intrinsic AutsReppingEmbeddingsOfF(F::FldNum, k::SeqEnum[RngIntElt] : Precision 
       end if;
     end if;
   end for;
+
+  require #Keys(aut_dict) eq n : "Something's wrong, there should\
+    be at one stored automorphism for each embedding of F";
   return [aut_dict[i] : i in [1 .. n]];
+end intrinsic;
+
+intrinsic AutsOfUCFReppingEmbeddingsOfF(F::FldNum, k::SeqEnum[RngIntElt] : Precision := 50) -> SeqEnum[Map]
+  { 
+    inputs:
+      F: A real Galois number field of degree n
+      k: A weight, given as a SeqEnum of n natural numbers
+    returns:
+      AutsOfKReppingEmbeddingsOfF applied with K equal to
+      the unit character field associated to F and k.
+  }
+  K := UnitCharField(F, k);
+  return AutsOfKReppingEmbeddingsOfF(F, K);
+end intrinsic;
+
+intrinsic ComplexConjugateOfPlace(w::PlcNumElt) -> FldElt
+  {
+    inputs:
+      w: A complex place of a number field K.
+    returns:
+      An automorphism aut of K such that
+      for any x in K, v_0(aut(x)) is the
+      complex conjugate of v_0(x).
+  }
+  K := NumberField(w);
+  require IsGalois(K) : "K is not Galois";
+  require IsComplex(w) : "w is not a complex place";
+
+  auts := AutsOfKReppingEmbeddingsOfF(K, K);
+  w_idx := Index(w, auts);
+  s := Integers()!(Degree(K) / 2);
+  return auts[w_idx + s];
 end intrinsic;
 
 intrinsic EltToShiftedHalfWeight(x::FldElt, k::SeqEnum[RngIntElt]) -> FldElt
@@ -587,13 +738,13 @@ intrinsic EltToShiftedHalfWeight(x::FldElt, k::SeqEnum[RngIntElt]) -> FldElt
     return K!1;
   end if;
 
-  auts := AutsReppingEmbeddingsOfF(F, k);
+  auts := AutsOfUCFReppingEmbeddingsOfF(F, k);
   if IsParitious(k) then
     // paritious nonparallel weight
     return &*[auts[i](K!x)^(ExactQuotient(k0 - k[i], 2)) : i in [1 .. #auts]];
   else
     // nonparitious weight
-    v_0 := DistinguishedPlace(K);
+    v_0 := MarkedEmbedding(K);
     y := &*[auts[i](Sqrt(K!x))^(k0 - k[i]) : i in [1 .. #auts]];
     return PositiveInPlace(y, v_0);
   end if;
@@ -620,7 +771,7 @@ intrinsic PositiveSqrt(nu::FldNumElt, K::FldNum) -> FldNumElt
       place of K.
   }
   mu := Sqrt(K!nu);
-  v_0 := DistinguishedPlace(K);
+  v_0 := MarkedEmbedding(K);
   return (Evaluate(mu, v_0) ge 0) select mu else -1*mu;
 end intrinsic;
 
@@ -643,31 +794,6 @@ intrinsic DefiningPolyCoeffs(K::Fld) -> SeqEnum
     K := RationalsAsNumberField();
   end if;
   return Coefficients(DefiningPolynomial(K));
-end intrinsic;
-
-intrinsic TraceBasisMatrixInverse(F::FldNum) -> AlgMatElt
-  {
-    Given an ideal aa, with standard basis Basis(aa) = [e_1, ..., e_n],
-    returns a matrix M whose ith row vector is (a_1, ..., a_n) 
-    such that a_1 * e_1 + ... + a_n * e_n = f_i,
-    where [f_1, ..., f_n] is a Z-basis of aa such that
-    Tr(f_1) > 0 and Tr(f_i) = 0 for i > 1.
-  }
-
-  if not assigned F`TraceBasisMatrixInverse then
-    B := Basis(F);
-    // a column vector whose ith element is the trace of
-    // the ith element of B
-    traces := Matrix([[Trace(B[i])] : i in [1..#B]]);
-
-    // Q is a matrix such that Q * traces is a column
-    // vector whose topmost entry is a positive rational
-    // and the rest are all 0 (which is what the Hermite 
-    // form of any column vector looks like).
-    _, Q := EchelonForm(traces);
-    F`TraceBasisMatrixInverse := Q^-1;
-  end if;
-  return F`TraceBasisMatrixInverse;
 end intrinsic;
 
 intrinsic TraceBasis(aa::RngOrdFracIdl) -> SeqEnum
@@ -696,16 +822,47 @@ intrinsic TraceBasis(aa::RngOrdFracIdl) -> SeqEnum
   return TB;
 end intrinsic;
 
-intrinsic InTraceBasis(nu::FldNumElt) -> SeqEnum
+intrinsic MinkowskiConstant(F::FldAlg) -> FldReElt
   {
-    input: 
-      A number field element, generally of the base field F of the HMF
-    returns:
-      A SeqEnum[FldRatElt] [b_1, ..., b_n] such that, if [f_1, ..., f_n]
-      is a TraceBasis for O_F, nu = b_1 * f_1 + ... + b_n * f_n.
+    Returns the Minkowski constant of F.
   }
-  F := Parent(nu);
-  // vector expressing nu in terms of Basis(F) (a Q-basis for F)
-  nu_vector := Vector(Eltseq(nu));
-  return Eltseq(nu_vector * TraceBasisMatrixInverse(F));
+  s := #InfinitePlaces(F) - #RealPlaces(F);
+  pi := Pi(RealField());
+  D := Discriminant(Integers(F));
+  n := Degree(F);
+  return Sqrt(Abs(D)) * (4 / pi)^s * n^n / Factorial(n);
+end intrinsic;
+
+intrinsic LargestRootOfUnity(K::FldAlg) -> RngIntElt
+  {
+    Given a number field K, returns the largest d such that 
+    zeta_d lies in K.
+  }
+  n := Degree(K);
+
+  R<x> := PolynomialRing(K);
+  p_pows := [];
+  for p in PrimesUpTo(n+1) do
+    k := Floor(Log(p, n+1));
+    root_ct := #Roots(x^(p^k)-1);
+    e := Integers()!Log(p, root_ct);
+    Append(~p_pows, <p, e>);
+  end for;
+
+  m := &*[tup[1]^tup[2] : tup in p_pows];
+  require IsSubfield(CyclotomicField(m), K) : "Something's wrong, the field\
+      Q(zeta_m) isn't a subfield of K";
+  return m;
+end intrinsic;
+
+intrinsic IsGalois(F::FldAlg) -> BoolElt
+  {
+    IsNormal fails if the defining polynomial of F has non-integral coefficients.
+  }
+  coeffs := DefiningPolyCoeffs(F);
+  if &and[IsIntegral(a) : a in coeffs] and coeffs[#coeffs] eq 1 then
+    return IsNormal(F);
+  else
+    return #GaloisGroup(F) eq Degree(F);
+  end if;
 end intrinsic;

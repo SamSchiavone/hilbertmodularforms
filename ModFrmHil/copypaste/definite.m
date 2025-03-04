@@ -13,16 +13,19 @@ freeze;
 //////////////////////////////////////////////////////////////////////////////
 
 // hack begins
-// We replace the import by our own function
-// import "hackobj.m" : HMF0;
-import "../hackobj.m" : HMF0;
-// hack ends
+// We replace DegeneracyMapDomain and WeightRepresentation by our own function
+import "../hecke_field.m" : DegeneracyMapDomain, WeightRepresentation;
+// HMF0 no longer needed
+//import "hackobj.m" : HMF0;
+
 
 import "hecke.m" : please_report, pseudo_inverse, basis_is_honest;
 
-import "precompute.m" : get_rids, get_tps;
+// Converted to following imports to absolute imports
+import !"Geometry/ModFrmHil/precompute.m" : get_rids, get_tps;
 
-import "proj1.m" : residue_class_reps;
+import !"Geometry/ModFrmHil/proj1.m" : residue_class_reps;
+// hack ends
 
 debug := false;
 
@@ -417,7 +420,7 @@ function weight_map_arch(q, splittings, K, m, n)
 end function;
 
 
-
+/* hack: replaced via the import "../hecke_field.m" : ...
 function WeightRepresentation(M) // ModFrmHil -> Map
 //  Given a space of Hilbert modular forms over a totally real number field F. This determines if the 
 //  weight k is an arithmetic. If so, an extension of F which is Galois over Q and splits H is found. Then,
@@ -491,7 +494,7 @@ function WeightRepresentation(M) // ModFrmHil -> Map
       return M`weight_rep, M`weight_dimension, M`weight_base_field;
    end if;
 end function;
-
+*/
 
 
 // Canonical representatives of elements of the projective line $P^1(OK/level)$ 
@@ -1965,7 +1968,7 @@ function DegeneracyMap(M1, M2, p : Big:=false)
 
 end function;
 
-
+/* hack: replaced via the import "../hecke_field.m" : ...
 function DegeneracyMapDomain(M, d)
    // Given an ambient space M and an integral ideal d such that NewLevel(M) | d | Level(M), 
    // returns a space of level d and same weight as M, defined using internals that are
@@ -1986,11 +1989,11 @@ function DegeneracyMapDomain(M, d)
    DM`weight_base_field:=M`weight_base_field;
    DM`weight_dimension:=M`weight_dimension;
    if Seqset(Weight(M)) ne {2} then // nontrivial weight
-      DM`weight_rep:=M`weight_rep; 
+      DM`weight_rep:=M`weight_rep;
    end if;
    return DM;
 end function;
-
+*/
 
 // Basis of a newspace (called only by BasisMatrixDefinite)
 

@@ -1,4 +1,4 @@
-function test(F, N, k, true_old_dim)
+procedure test(F, N, k, true_old_dim)
   // F : FldNum - A number field
   // N : RngOrdIdl - A level
   // k : SeqEnum[RngIntElt] - A weight
@@ -20,7 +20,7 @@ function test(F, N, k, true_old_dim)
   assert #LinearDependence(new_basis cat old_basis) eq 0;
 
   // Check that the claimed old basis vectors
-  // are Hecke operators for a prime not dividing
+  // are Hecke eigenforms for a prime not dividing
   // the level.
 
   pp := PrimesUpTo(bound, F:coprime_to := N)[1];
@@ -28,8 +28,8 @@ function test(F, N, k, true_old_dim)
     g := HeckeOperator(f, pp);
     assert #LinearDependence([f, g]) eq 1;
   end for;
-  return "";
-end function;
+  //return "";
+end procedure;
 
 
 k := [2,2];

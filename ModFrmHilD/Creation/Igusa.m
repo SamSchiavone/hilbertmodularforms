@@ -97,7 +97,7 @@ intrinsic SiegelEisensteinPullback(M::ModFrmHilDGRng, k::SeqEnum[RngIntElt]) -> 
   if not IsTotallyPositive(factors) then //just in case factors is negative
     factors:=-factors;
   end if;
-  G, unitmp := TotallyPositiveUnits(M);
+  G, unitmp := TotallyPositiveUnitsGroup(M);
 
   Mkplus := HMFSpace(M, k);
   // Dealing with unit characters
@@ -123,8 +123,8 @@ intrinsic SiegelEisensteinPullback(M::ModFrmHilDGRng, k::SeqEnum[RngIntElt]) -> 
   end for;
 
   // creates an HMF only supported at bb
-  fplus := HMF(cModFrmHilDEltComp(Mkplus, bb, fpluscoeffs));
-  fminus := HMF(cModFrmHilDEltComp(Mkminus, bb, fminuscoeffs));
+  fplus := HMF(HMFComponent(Mkplus, bb, fpluscoeffs));
+  fminus := HMF(HMFComponent(Mkminus, bb, fminuscoeffs));
   return fplus, fminus;
 end intrinsic;
 

@@ -4,6 +4,13 @@
 //                                               //
 ///////////////////////////////////////////////////
 
+
+function default_dir()
+  path_to_this_filename := Split(Split([l : l in Split(Sprint(LoadBasis, "Maximal")) | "Defined" in l][1],":")[2],",")[1];
+  package_dir := "/" cat Join(s[2..#s-2], "/") where s := Split(path_to_this_filename, "/");
+  return package_dir cat "/Precomputations/";
+end function;
+
 intrinsic SaveFilePrefix(Mk::ModFrmHilD) -> MonStgElt
   {
     Builds a prefix encoding the field, level, weight, and character
@@ -12,9 +19,9 @@ intrinsic SaveFilePrefix(Mk::ModFrmHilD) -> MonStgElt
   // We label number fields by their degree and discriminant
   //
   // TODO abhijitm this is really bad, but it works for me
-  // for now. 
+  // for now.
   F := BaseField(Mk);
-  F_label := Join([IntegerToString(a) : a in DefiningPolyCoeffs(F)], ".");
+  F_label := HackyFieldLabel(F);
 
   // Use the LMFDB label for N
   N := Level(Mk);
@@ -24,43 +31,56 @@ intrinsic SaveFilePrefix(Mk::ModFrmHilD) -> MonStgElt
   // the weight label for [a, b, c, ...] is a.b.c_...
   k_label := Join([IntegerToString(k_i) : k_i in k], ".");
 
-  // If H = HeckeCharacterGroup(N, [1 .. n]),
-  // the nebentypus label for H.1^a H.2^b H.3^c ...
-  // is a.b.c_...
-  //
-  // TODO abhijitm this is not canonical and 
-  // will become incorrect if Magma changes
-  // e.g. how it computes group generators.
   chi := Character(Mk);
-  chi_seq := Eltseq(chi);
-  chi_label := Join([IntegerToString(chi_cmp) : chi_cmp in chi_seq], ".");
+  chi_label := HeckeCharLabel(chi : full_label:=false);
 
-  return Join([F_label, N_label, k_label, chi_label], "-");
+  return Join([F_label, N_label, k_label, chi_label], "=");
 end intrinsic;
 
-intrinsic SaveBasis(savefile_name::MonStgElt, B::SeqEnum[ModFrmHilDElt])
+intrinsic MkFromSavefile(savefile_path::MonStgElt, saved_prec::RngIntElt) -> ModFrmHilD
+  {
+    Builds an Mk from a filename beginning with a prefix 
+    constructed by SaveFilePrefix.
+  }
+  split_savefile_path := Split(savefile_path, "/");
+  savefile_name := split_savefile_path[#split_savefile_path];
+  prefix := Split(savefile_name, "_")[1];
+
+  F_label, N_label, k_label, chi_label := Explode(Split(prefix, "="));
+
+  F := FieldFromHackyLabel(F_label);
+  
+  N := LMFDBIdeal(F, N_label);
+  k := [StringToInteger(x) : x in Split(k_label, ".")];
+  chi := ChiLabelToHeckeChar(chi_label, N);
+
+  M := GradedRingOfHMFs(F, saved_prec);
+
+  return HMFSpace(M, N, k, chi);
+end intrinsic;
+
+intrinsic SaveBasis(savefile_path::MonStgElt, B::SeqEnum[ModFrmHilDElt])
   {
     input:
-      savefile_name: The file to which we will write
+      savefile_path: The file to which we will write
       B: A sequence [f_1, ..., f_n] of ModFrmHilDElts
-      savedir: 
+      savedir:
 
     We store the sequence B into the file at savefile_path
-    
-    Writing f_i^1, ..., f_i^(h+) for the components of f_i,
-    each f_i^bb is an ModFrmHilDEltComp with an associated 
-    multivariate Puiseux series.
 
-    What we actually store is the 
-    SeqEnum[SeqEnum[Tup[RngSerPuisElt, Fld]]]
+    Writing f_i^1, ..., f_i^(h+) for the components of f_i,
+    each f_i^bb is an ModFrmHilDEltComp.
+
+    What we actually store is the
+    SeqEnum[SeqEnum[Tup[RngMPolElt, Fld]]]
 
     [[<f_i^bb`Series, K_i^bb>]_(bb in Cl+)]_(1 <= i <= n),
 
     where K_i^bb is the coefficient ring of f_i^bb.
 
-    Note that this will OVERWRITE the contents of savedir/savefile_name.
+    Note that this will OVERWRITE the contents of savedir/savefile_path.
   }
-  savefile := Open(savefile_name, "w+");
+  savefile := Open(savefile_path, "w+");
 
   if #B eq 0 then
     // some absurdly large value;
@@ -77,15 +97,22 @@ intrinsic SaveBasis(savefile_name::MonStgElt, B::SeqEnum[ModFrmHilDElt])
   savefile := 0;
 end intrinsic;
 
-intrinsic LoadBasis(loadfile_name::MonStgElt, Mk::ModFrmHilD) -> SeqEnum[ModFrmHilDElt]
+intrinsic LoadBasis(savefile_path::MonStgElt : Mk:=false) -> BoolElt, SeqEnum[ModFrmHilDElt]
   {
     We recover a basis from a file written to by SaveBasis.
   }
-  bbs := NarrowClassGroupReps(Parent(Mk));
-  loadfile := Open(loadfile_name, "r");
-  saved_prec := ReadObject(loadfile);
-  if saved_prec ge Precision(Parent(Mk)) then
-    A := ReadObject(loadfile);
+  savefile := Open(savefile_path, "r");
+  saved_prec := ReadObject(savefile);
+
+  if Mk cmpeq false then
+    Mk := MkFromSavefile(savefile_path, saved_prec);
+    target_prec := saved_prec;
+  else
+    target_prec := Precision(Parent(Mk));
+  end if;
+
+  if saved_prec ge target_prec then
+    A := ReadObject(savefile);
     return true, [CoeffListsToElement(Mk, f_coeff_lists) : f_coeff_lists in A];
   else
     return false, _;
@@ -100,7 +127,7 @@ intrinsic ElementToCoeffLists(f::ModFrmHilDElt) -> Tup
   coeff_ring_and_prec := <CoefficientRing(f), Precision(f)>;
 
   // coefficients at the infinity cusps are stored
-  // as a list of pairs <bb, coefficient of bb cmp at oo> 
+  // as a list of pairs <bb, coefficient of bb cmp at oo>
   coeffs_at_infty := [];
   for bb in NarrowClassGroupReps(M) do
     // these are always integral ideals I think
@@ -130,19 +157,20 @@ intrinsic CoeffListsToElement(Mk::ModFrmHilD, coeff_lists::Tup) -> ModFrmHilDElt
       precision for this space of HMFs";
 
   // create a power series for each component
-  components := AssociativeArray();
+  coeffs := AssociativeArray();
   for i->bb in NarrowClassGroupReps(M) do
     bb_label, a_bb_0 := Explode(coeffs_at_infty[i]);
     assert LMFDBLabel(bb) eq bb_label;
     a_bb_0 := StrongCoerce(K, a_bb_0);
-    components[bb] := RngSerPuisMonomial(Mk, F!0, a_bb_0);
+    coeffs[bb] := AssociativeArray();
+    coeffs[bb][F!0] := a_bb_0;
   end for;
 
-  // iterate through ideals and add monomials 
+  // iterate through ideals and add monomials
   // to the appropriate component
   //
   // we populate a dictionary first because
-  // IdealsUpTo seems to be nondeterministic when 
+  // IdealsUpTo seems to be nondeterministic when
   // ordering ideals of the same norm
   coeffs_by_idl_dict := AssociativeArray();
   nonzero_ideals := Exclude(Ideals(M), 0*Integers(F));
@@ -150,52 +178,60 @@ intrinsic CoeffListsToElement(Mk::ModFrmHilD, coeff_lists::Tup) -> ModFrmHilDElt
     nn_label, a_nn := Explode(coeffs_by_idl[i]);
     coeffs_by_idl_dict[nn_label] := a_nn;
   end for;
-    
+
   for nn in nonzero_ideals do
     a_nn := coeffs_by_idl_dict[LMFDBLabel(nn)];
     bb := IdealToNarrowClassRep(M, nn);
     a_nn := StrongCoerce(K, a_nn);
-    components[bb] +:= RngSerPuisMonomial(Mk, nn, a_nn);
+    nu := IdealToRep(M, nn);
+    a_nu := IdlCoeffToEltCoeff(a_nn, nu, Weight(Mk), K);
+    coeffs[bb][nu] := a_nu;
   end for;
 
-  // Could contract this into the earlier loop over bbs
-  for bb in NarrowClassGroupReps(M) do
-    components[bb] := cModFrmHilDEltComp(Mk, bb, components[bb] : 
-        coeff_ring := K, prec := Precision(M));
-  end for;
-       
-  return HMFSumComponents(Mk, components);
+  return HMF(Mk, coeffs : prec := Precision(M), coeff_ring := K);
 end intrinsic;
 
 intrinsic LoadOrBuildAndSave(
     Mk::ModFrmHilD,
     builder::Intrinsic,
     suffix::MonStgElt :
-    save_dir := "./Precomputations/",
+    save_dir := false,
     prefix := SaveFilePrefix(Mk)
     ) -> SeqEnum[ModFrmHilDElt]
   {
     inputs:
       Mk - space of HMFs
-      builder - intrinsic which is used to build 
-        the basis if it is not saved  
-      suffix - string suffix where this basis should
+      builder - intrinsic which is used to build
+        the basis if it is not saved.
+        suffix - string suffix where this basis should
         be saved/loaded from
       save_dir - directory where precomputed results
         are saved
       prefix - prefix string to be used for this load/save
     returns:
   }
+  if save_dir cmpeq false then
+    save_dir := default_dir();
+  end if;
   loadfile_name := save_dir cat prefix cat suffix;
   is_saved, loadfile := OpenTest(loadfile_name, "r");
   loaded := false;
   if is_saved then
-    loaded, basis := LoadBasis(loadfile_name, Mk);
+    try
+      loaded, basis := LoadBasis(loadfile_name : Mk:=Mk);
+    catch e
+      Write("/dev/stderr", Sprintf("Failed to load %o:\n%o", loadfile_name, e));
+      loaded := false;
+    end try;
   end if;
   // loaded is false if the file was not saved or if
   // the precision of the stored basis wasn't high enough
   if not loaded then
-    basis := builder(Mk);
+    if builder eq HeckeStabilityCuspBasis then
+      basis := HeckeStabilityCuspBasis(Mk : SaveAndLoad:=true);
+    else
+      basis := builder(Mk);
+    end if;
     SaveBasis(loadfile_name, basis);
   end if;
   return basis;

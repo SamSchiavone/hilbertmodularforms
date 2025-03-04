@@ -33,17 +33,16 @@ end function;
 // The usual Magma assert statement doesn't tell you
 // what the two values were when an assertion fails. 
 // This is an attempt to remedy that.
-function assert_eq(x, y)
+procedure assert_eq(x, y)
   // x: Any
   // y: Any
   if x cmpne y then
     print "Failure! %o is not equal to %o \n", x, y;
     assert x eq y;
   end if;
-  return "";
-end function;
+end procedure;
 
-function test(F, K, k, bbps, idl_to_elt, elt_to_idl : bound := BOUND)
+procedure test(F, K, k, bbps, idl_to_elt, elt_to_idl : bound := BOUND)
   // F: FldNum - number field
   // k: SeqEnum[RngIntElt] - weight (sequence of nonnegative integers)
   // idl_to_elt: UserProgram - a function taking a_nn and nu and computing a_nu
@@ -58,16 +57,16 @@ function test(F, K, k, bbps, idl_to_elt, elt_to_idl : bound := BOUND)
       // TODO abhijitm decide whether or not there's a bbp dependence,
       // if not remove the bbp's everywhere in this test.
       x := IdlCoeffToEltCoeff(a, nu, k, K);
-      y := EltCoeffToIdlCoeff(a, nu, k, K);
+      y := EltCoeffToIdlCoeff(a, nu, k : K:=K);
       assert_eq(x, idl_to_elt(a, nu, bbp));
       assert_eq(y, elt_to_idl(a, nu, bbp));
-      assert_eq(EltCoeffToIdlCoeff(x, nu, k, K), a);
+      assert_eq(EltCoeffToIdlCoeff(x, nu, k : K:=K), a);
       assert_eq(IdlCoeffToEltCoeff(y, nu, k, K), a);
     end if;
   end for;
-  print "Passed test!";
-  return "";
-end function;
+//  print "Passed test!";
+//  return "";
+end procedure;
 
 /////// NARROW CLASS NUMBER 1
 
@@ -102,7 +101,7 @@ test(F, K, k, bbps, idl_to_elt, elt_to_idl);
 
 k := [6, 2];
 K := UnitCharField(F, k);
-auts := AutsReppingEmbeddingsOfF(F, k);
+auts := AutsOfUCFReppingEmbeddingsOfF(F, k);
 idl_to_elt := func<a, nu, bbp | a*auts[2](nu^(-2))>;
 elt_to_idl := func<a, nu, bbp | a*auts[2](nu^2)>;
 test(F, K, k, bbps, idl_to_elt, elt_to_idl);

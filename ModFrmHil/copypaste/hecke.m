@@ -10,10 +10,10 @@ freeze;
 
 *****************************************************************************/
 
-import "hackobj.m" : Ambient, 
+import "hackobj.m" : Ambient,
                      TopAmbient,
-                     HMF0, 
-                     IsBianchi, 
+                     // HMF0, // removed for the hack
+                     IsBianchi,
                      BMF_with_ambient,
                      set_quaternion_order;
 
@@ -23,6 +23,12 @@ import "definite.m" : BasisMatrixDefinite,
                       AtkinLehnerDefiniteBig,
                       DegeneracyDown1DefiniteBig,
                       DegeneracyDownpDefiniteBig;
+// hack begins
+import "../diamond.m" : operator;
+import "../hackobj.m" : HMF0;
+import "../hecke_field.m" : hecke_matrix_field,
+                            minimal_hecke_matrix_field;
+// hack ends
 
 debug := false;
 
@@ -66,6 +72,7 @@ end function;
 // M`hecke_matrix_field is not always assigned; when it is not,
 // HeckeOperator returns matrices over the weight_base_field.
 
+/* hack: replaced via import
 function hecke_matrix_field(M)
   if assigned M`hecke_matrix_field then
     return M`hecke_matrix_field;
@@ -75,9 +82,10 @@ function hecke_matrix_field(M)
     return Ambient(M)`weight_base_field;
   end if;
 end function;
+*/
 
 // The natural field over which Hecke operators can be expressed.
-
+/* hack: replaced via import
 function minimal_hecke_matrix_field(M)
   bool, minimal := HasAttribute(M, "hecke_matrix_field_is_minimal");
   if bool and minimal then
@@ -113,6 +121,7 @@ function minimal_hecke_matrix_field(M)
   end if;
   return H;
 end function;
+*/
 
 function basis_is_honest(M)
   return assigned M`basis_is_honest and M`basis_is_honest
@@ -327,6 +336,7 @@ function checks(M, _p, op)
   return true, _, p;
 end function;
 
+/*  hack: replaced via import
 function operator(M, p, op)
   assert op in {"Hecke", "AL", "DegDown1", "DegDownp"};
 
@@ -432,6 +442,7 @@ function operator(M, p, op)
 
   return Tp;
 end function;
+*/
 
 intrinsic HeckeOperator(M::ModFrmHil, p::Any) -> Mtrx
 {The Hecke operator T_p on the space M of Hilbert modular forms 
@@ -1217,7 +1228,7 @@ function NewformsOfDegree1Implemented(M)
 end function;
 
 // TO DO: Sort (by default?)
-
+/*
 intrinsic NewformDecomposition(M::ModFrmHil : Dimensions:=0) -> List
 {Given a new space M of Hilbert modular forms, this decomposes M into subspaces 
  that are irreducible as Hecke modules, and returns this list of new spaces}
@@ -1258,11 +1269,11 @@ intrinsic NewformDecomposition(M::ModFrmHil : Dimensions:=0) -> List
   elif dim eq 0 then 
     ND := [* *]; 
 
-  /* TO DO
-  elif dim eq 1 then 
-    endow M with the attributes of an eigenspace
-    ND := [* M *]; 
-  */
+  // TO DO
+  //elif dim eq 1 then 
+  //  endow M with the attributes of an eigenspace
+  //  ND := [* M *]; 
+  //
 
   elif Dimensions eq [1] and NewformsOfDegree1Implemented(M)
 and dim ne 1 // beware recursion
@@ -1515,7 +1526,7 @@ end if;
 
   return ND;
 end intrinsic;
-
+*/
 
 // Find an eigenvector of M mod P with eigenvalue e mod P
 // Returns false if eigenspace mod P is not dimension 1
@@ -1537,6 +1548,7 @@ end function;
 
 forward get_red_vector; // temp (TO DO)
 
+/*
 intrinsic Eigenform(M::ModFrmHil) -> ModFrmHilElt
 {An eigenform in the space M of Hilbert modular forms
  (which must be an irreducible module under the Hecke action)}
@@ -1628,13 +1640,13 @@ elif METHOD ge 3 then
        else
          EK := ext< K | fK >;
          Embed(E, EK, EK.1);
-        /*
+        
          // old work around
          // use the absolute field so that coercion works for EK to E 
-         EKrel := ext< K | fK >;
-         EK := AbsoluteField(EKrel);
-         Embed(E, EK, EK!EKrel.1);
-        */
+         //EKrel := ext< K | fK >;
+         //EK := AbsoluteField(EKrel);
+         //Embed(E, EK, EK!EKrel.1);
+        
        end if;
        // Doesn't help to use absolute, optimized EK
      end if;
@@ -1707,6 +1719,7 @@ intrinsic HeckeEigenvalueField(M::ModFrmHil) -> Fld
 
   return BaseField(Eigenform(M));
 end intrinsic;
+*/
 
 procedure get_red_vector(EK, tEK, eEK, ~red_vecs : NUM:=1)
   // TO DO ??? will actually want it in the 'raw' basis ???
